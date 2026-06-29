@@ -242,15 +242,13 @@
   }
 
   function _html(el, content) {
-    // Use a blob URL instead of srcdoc so the iframe has a proper origin.
-    // This lets relative image paths and sub-resources resolve correctly.
-    var blob = new Blob([content], { type: 'text/html' });
-    var url = URL.createObjectURL(blob);
+    // srcdoc sandbox — same-origin by default, no CSP frame-src needed.
+    // External resources (fonts, CDN images) load fine. Local images
+    // need absolute paths or the page must use relative-to-self URLs.
     var iframe = document.createElement('iframe');
     iframe.className = 'artifact-preview-iframe';
-    iframe.sandbox = 'allow-scripts allow-same-origin';
-    iframe.src = url;
-    iframe.onload = function() { URL.revokeObjectURL(url); };
+    iframe.sandbox = 'allow-scripts';
+    iframe.srcdoc = content;
     el.innerHTML = '';
     el.appendChild(iframe);
   }

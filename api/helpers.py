@@ -79,7 +79,7 @@ _CSP_SHARED_POLICY_TEMPLATE = (
     "font-src 'self' data: https://fonts.gstatic.com; "
     "media-src 'self' data: blob:; "
     "connect-src {connect_src}; "
-    "frame-src {frame_src}; "
+    "frame-src {frame_src} blob:; "
     "manifest-src 'self' https://*.cloudflareaccess.com; "
     "base-uri 'self'; form-action 'self'"
 )
