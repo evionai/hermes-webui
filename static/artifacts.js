@@ -83,8 +83,8 @@
   function _updateToggleBtn() {
     var btn = document.getElementById('btnArtifactPanelToggle');
     if (!btn) return;
-    var hasAny = Object.keys(_artifacts).length > 0;
-    btn.style.display = hasAny ? '' : 'none';
+    // Always show the star button so the user can find it
+    btn.style.display = '';
     if (_panelVisible) { btn.setAttribute('aria-pressed', 'true'); btn.classList.add('active'); }
     else { btn.setAttribute('aria-pressed', 'false'); btn.classList.remove('active'); }
   }
@@ -166,7 +166,12 @@
   }
 
   function switchArtifactView(mode) {
-    _artifactViewMode = mode || (_artifactViewMode === 'preview' ? 'code' : _artifactViewMode === 'code' ? 'split' : 'preview');
+    if (mode) { _artifactViewMode = mode; }
+    else {
+      if (_artifactViewMode === 'preview') _artifactViewMode = 'code';
+      else if (_artifactViewMode === 'code') _artifactViewMode = 'preview';
+      else _artifactViewMode = 'preview';
+    }
     if (_panelVisible) _renderActiveContent();
   }
 
@@ -334,8 +339,8 @@
     });
     document.addEventListener('mousemove', function(e) {
       if (!resizing) return;
-      // Drag left = smaller, drag right = larger
-      _panelWidth = Math.max(280, Math.min(900, startW + (e.clientX - startX)));
+      // Drag left edge: move cursor right = panel gets smaller (left edge moves inward)
+      _panelWidth = Math.max(280, Math.min(900, startW - (e.clientX - startX)));
       var p = _panel(); if (p) p.style.width = _panelWidth + 'px';
     });
     document.addEventListener('mouseup', function() {
