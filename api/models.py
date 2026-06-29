@@ -5016,7 +5016,7 @@ def _load_cli_sessions_uncached(
         db_path,
         limit=visible_session_limit if visible_session_limit is not None else (CRON_PROJECT_CHIP_LIMIT if source_filter == 'cron' else CLI_VISIBLE_SESSION_LIMIT),
         log=logger,
-        exclude_sources=("cron",) if source_filter is None else None,
+        exclude_sources=("cron", "subagent") if source_filter is None else None,
         include_sources=None if source_filter is None else (source_filter,),
     ):
         sid = row['id']
