@@ -7001,3 +7001,43 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
 :root[data-skin="vercel"] .msg-body a:hover{text-decoration-color:var(--text);}
 :root[data-skin="vercel"] ::selection{background:var(--accent-bg-strong);color:var(--strong);}
 :root[data-skin="vercel"] ::-webkit-scrollbar-thumb{background:var(--border2)!important;border-radius:4px;}
+
+/* ═══ VERCEL REFINEMENTS — surgical, no layout changes ═══ */
+
+/* Composer chips: cleaner Geist look */
+:root[data-skin="vercel"] .composer-model-chip,
+:root[data-skin="vercel"] .composer-workspace-chip,
+:root[data-skin="vercel"] .composer-reasoning-chip,
+:root[data-skin="vercel"] .composer-toolsets-chip,
+:root[data-skin="vercel"] #composerWorkspaceGroup{font-family:"Geist Sans",sans-serif!important;}
+
+/* Suggestion cards: softer */
+:root[data-skin="vercel"] .suggestion{border-radius:10px;border:1px solid var(--border);background:var(--surface-subtle);font-family:"Geist Sans",sans-serif!important;}
+:root[data-skin="vercel"] .suggestion:hover{border-color:var(--border2);background:var(--hover-bg);}
+
+/* Code blocks: rounded corners */
+:root[data-skin="vercel"] .msg-body pre{border-radius:8px;border:1px solid var(--border);}
+:root[data-skin="vercel"] .pre-header{border-radius:8px 8px 0 0;font-family:"Geist Mono",monospace!important;}
+
+/* Tool cards: rounded */
+:root[data-skin="vercel"] .tool-card{border-radius:10px;border:1px solid var(--border);}
+
+/* Sidebar search: refined */
+:root[data-skin="vercel"] #sessionSearch{font-family:"Geist Sans",sans-serif!important;}
+
+/* Settings action buttons: pill shape */
+:root[data-skin="vercel"] .settings-action-btn{border-radius:8px;font-family:"Geist Sans",sans-serif!important;}
+
+/* Model/reasoning/workspace dropdowns: soft shadow */
+:root[data-skin="vercel"] .model-dropdown,
+:root[data-skin="vercel"] .ws-dropdown,
+:root[data-skin="vercel"] .composer-reasoning-dropdown,
+:root[data-skin="vercel"] .composer-toolsets-dropdown{border-radius:12px;border:1px solid var(--border);box-shadow:0 8px 30px rgba(0,0,0,.5);}
+
+/* Empty state: clean */
+:root[data-skin="vercel"] .empty-state{font-family:"Geist Sans",sans-serif!important;}
+
+/* Nav tabs and rail: Geist + refined */
+:root[data-skin="vercel"] .nav-tab,
+:root[data-skin="vercel"] .rail-btn{font-family:"Geist Sans",sans-serif!important;}
+:root[data-skin="vercel"] .rail-btn.active{background:var(--accent-bg);}
