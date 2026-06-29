@@ -242,10 +242,15 @@
   }
 
   function _html(el, content) {
+    // Use a blob URL instead of srcdoc so the iframe has a proper origin.
+    // This lets relative image paths and sub-resources resolve correctly.
+    var blob = new Blob([content], { type: 'text/html' });
+    var url = URL.createObjectURL(blob);
     var iframe = document.createElement('iframe');
     iframe.className = 'artifact-preview-iframe';
     iframe.sandbox = 'allow-scripts allow-same-origin';
-    iframe.srcdoc = content;
+    iframe.src = url;
+    iframe.onload = function() { URL.revokeObjectURL(url); };
     el.innerHTML = '';
     el.appendChild(iframe);
   }
@@ -328,25 +333,41 @@
     if (_activeArtifactId === id && _panelVisible) _renderActiveContent();
   }
 
-  // ── Resize (simplified — right-edge drag, no rAF overhead) ───────────────────
+  // ── Resize — drag left edge of the right-side panel ─────────────────────────
+  // The panel sits on the right. Its left edge (the resize handle) determines
+  // width: width = viewport_right - left_edge_x.
   (function() {
-    var resizing = false, startX = 0, startW = 0;
+    var resizing = false, panelLeftOnGrab = 0, grabX = 0, grabW = 0;
     document.addEventListener('mousedown', function(e) {
       if (!e.target || e.target.id !== 'artifactResize') return;
-      resizing = true; startX = e.clientX; startW = _panelWidth;
-      document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none';
+      var p = _panel(); if (!p) return;
+      resizing = true;
+      grabX = e.clientX;
+      grabW = _panelWidth;
+      // Snapshot the panel's left edge in viewport coords so we can track it
+      panelLeftOnGrab = p.getBoundingClientRect().left;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
       e.preventDefault();
     });
     document.addEventListener('mousemove', function(e) {
       if (!resizing) return;
-      // Drag left edge: move cursor right = panel gets smaller (left edge moves inward)
-      _panelWidth = Math.max(280, Math.min(900, startW - (e.clientX - startX)));
-      var p = _panel(); if (p) p.style.width = _panelWidth + 'px';
+      // Delta from grab point: positive = dragged right, negative = dragged left
+      var dx = e.clientX - grabX;
+      // Dragging right → left edge moves right → panel narrower
+      // Dragging left  → left edge moves left  → panel wider
+      var newLeft = panelLeftOnGrab + dx;
+      // Panel width = viewport width - left edge position
+      var vw = document.documentElement.clientWidth;
+      _panelWidth = Math.max(280, Math.min(900, vw - newLeft));
+      var p = _panel();
+      if (p) p.style.width = _panelWidth + 'px';
     });
     document.addEventListener('mouseup', function() {
       if (!resizing) return;
       resizing = false;
-      document.body.style.cursor = ''; document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
       _saveWidth();
     });
   })();
