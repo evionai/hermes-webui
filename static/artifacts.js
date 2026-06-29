@@ -135,6 +135,8 @@
       })
       .then(function(text) {
         var a = _artifacts[id]; if (!a) return;
+        // Rewrite relative image/src paths to absolute /api/media URLs
+        text = _rewriteRelativeUrls(text, src);
         a.content = text;
         a.loading = false;
         if (_activeArtifactId === id && _panelVisible) _renderActiveContent();
@@ -147,6 +149,64 @@
       });
   }
 
+  // ── Relative URL rewriter for file-loaded artifacts ─────────────────────────
+  // When an artifact is loaded from a local file, rewrite relative src/href
+  // attributes so images, stylesheets, and scripts resolve via /api/media.
+  function _rewriteRelativeUrls(html, filePath) {
+    // Extract the directory containing the source file
+    var dir = filePath.replace(/\/[^\/]*$/, '');
+    if (dir === filePath) dir = '/tmp'; // fallback
+    if (dir.indexOf('://') === -1 && dir.charAt(0) !== '/') return html;
+
+    // Rewrite src="..." and href="..." that are relative paths
+    html = html.replace(/(src|href)=["'](?!https?:\/\/|\/|data:|#|blob:)([^"']+)["']/gi,
+      function(m, attr, path) {
+        // Resolve relative path against the source directory
+        var resolved = dir + '/' + path.replace(/^\.\//, '');
+        return attr + '="api/media?path=' + encodeURIComponent(resolved) + '&inline=1"';
+      });
+
+    // Rewrite url(...) in CSS (style attributes and <style> blocks)
+    html = html.replace(/url\(["']?(?!https?:\/\/|\/|data:)([^)"'\s]+)["']?\)/gi,
+      function(m, path) {
+        var resolved = dir + '/' + path.replace(/^\.\//, '');
+        return 'url(api/media?path=' + encodeURIComponent(resolved) + '&inline=1)';
+      });
+
+    return html;
+  }
+
+  // ── Panel expand / restore ──────────────────────────────────────────────────
+  var _preExpandWidth = 0;
+  function expandArtifactPanel() {
+    if (!_panelVisible) showArtifactPanel();
+    var p = _panel(); if (!p) return;
+    // Disable transition for instant snap
+    p.style.transition = 'none';
+    _preExpandWidth = _panelWidth;
+    // Expand to fill most of the layout minus a small gutter for the composer
+    var maxW = Math.min(document.documentElement.clientWidth - 380, 1200);
+    _panelWidth = Math.max(420, maxW);
+    p.style.width = _panelWidth + 'px';
+    p.classList.add('artifact-expanded');
+    _updateExpandBtn();
+  }
+  function restoreArtifactPanel() {
+    var p = _panel(); if (!p) return;
+    p.style.transition = 'width .2s cubic-bezier(.22,1,.36,1)';
+    _panelWidth = _preExpandWidth || 420;
+    p.style.width = _panelWidth + 'px';
+    p.classList.remove('artifact-expanded');
+    _updateExpandBtn();
+    _saveWidth();
+  }
+  function _updateExpandBtn() {
+    var expanded = document.getElementById('artifactPanel') && document.getElementById('artifactPanel').classList.contains('artifact-expanded');
+    var btn = document.getElementById('btnArtifactExpand');
+    if (!btn) return;
+    btn.textContent = expanded ? '\u2190' : '\u2192';  // ←  → 
+    btn.title = expanded ? 'Restore' : 'Expand';
+  }
   function closeArtifact(id) {
     delete _artifacts[id];
     var idx = _artifactOrder.indexOf(id); if (idx >= -1) _artifactOrder.splice(idx, 1);
@@ -385,6 +445,8 @@
     window.hideArtifactPanel = hideArtifactPanel;
     window.artifactFullscreen = artifactFullscreen;
     window.closeArtifactFullscreen = closeArtifactFullscreen;
+    window.expandArtifactPanel = expandArtifactPanel;
+    window.restoreArtifactPanel = restoreArtifactPanel;
     window.downloadArtifact = downloadArtifact;
     window.streamArtifactChunk = streamArtifactChunk;
     window.finalizeArtifact = finalizeArtifact;
