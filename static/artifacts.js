@@ -334,38 +334,38 @@
   }
 
   // ── Resize — drag left edge of the right-side panel ─────────────────────────
-  // The panel sits on the right. Its left edge (the resize handle) determines
-  // width: width = viewport_right - left_edge_x.
+  // The panel sits on the right side of the layout. Its left edge is the
+  // resize handle. Dragging left = wider, dragging right = narrower.
+  // CSS transitions are disabled during drag to prevent lag/jitter.
   (function() {
-    var resizing = false, panelLeftOnGrab = 0, grabX = 0, grabW = 0;
+    var resizing = false, grabX = 0, grabW = 0;
     document.addEventListener('mousedown', function(e) {
       if (!e.target || e.target.id !== 'artifactResize') return;
       var p = _panel(); if (!p) return;
       resizing = true;
       grabX = e.clientX;
       grabW = _panelWidth;
-      // Snapshot the panel's left edge in viewport coords so we can track it
-      panelLeftOnGrab = p.getBoundingClientRect().left;
+      // Kill CSS transition during drag so width tracks the cursor instantly
+      p.style.transition = 'none';
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
       e.preventDefault();
     });
     document.addEventListener('mousemove', function(e) {
       if (!resizing) return;
-      // Delta from grab point: positive = dragged right, negative = dragged left
+      // Delta: positive = dragged right (narrower), negative = dragged left (wider)
       var dx = e.clientX - grabX;
-      // Dragging right → left edge moves right → panel narrower
-      // Dragging left  → left edge moves left  → panel wider
-      var newLeft = panelLeftOnGrab + dx;
-      // Panel width = viewport width - left edge position
-      var vw = document.documentElement.clientWidth;
-      _panelWidth = Math.max(280, Math.min(900, vw - newLeft));
-      var p = _panel();
-      if (p) p.style.width = _panelWidth + 'px';
+      _panelWidth = Math.max(280, Math.min(900, grabW - dx));
+      var p = _panel(); if (p) p.style.width = _panelWidth + 'px';
     });
-    document.addEventListener('mouseup', function() {
+    document.addEventListener('mouseup', function(e) {
       if (!resizing) return;
       resizing = false;
+      var p = _panel();
+      if (p) {
+        // Restore CSS transition for normal panel open/close
+        p.style.transition = 'width .2s cubic-bezier(.22,1,.36,1), opacity .18s ease';
+      }
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       _saveWidth();
