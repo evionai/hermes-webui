@@ -615,6 +615,9 @@
             </div>
             <div class="composer-ws-wrap">
               <div class="composer-workspace-group ws-chip" id="composerWorkspaceGroup" role="group" aria-label="Workspace controls">
+                <button class="composer-workspace-files-btn" id="btnArtifactPanelToggle" type="button" onclick="toggleArtifactPanel()" title="Show artifact panel" aria-pressed="false" aria-label="Toggle artifact panel" style="display:none">
+                  <span class="composer-workspace-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span>
+                </button>
                 <button class="composer-workspace-files-btn" id="btnWorkspacePanelToggle" type="button" onclick="toggleWorkspacePanel()" title="Show workspace panel" aria-pressed="false" aria-label="Toggle workspace files panel">
                   <span class="composer-workspace-icon" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
                 </button>
@@ -1554,6 +1557,27 @@
       </div>
     </div>
   </main>
+  <!-- Artifact panel: Claude-style interactive content panel with code/preview toggle -->
+  <aside class="artifact-panel" id="artifactPanel" style="display:none">
+    <div class="artifact-resize-handle" id="artifactResize" role="separator" aria-orientation="vertical" aria-label="Resize artifact panel"></div>
+    <div class="artifact-header">
+      <div class="artifact-tabs" id="artifactTabs" role="tablist" aria-label="Artifacts"></div>
+      <div class="artifact-actions">
+        <button class="artifact-action-btn has-tooltip has-tooltip--bottom" id="btnArtifactViewToggle" onclick="switchArtifactView()" data-tooltip="Toggle code/preview">Preview</button>
+        <button class="artifact-action-btn has-tooltip has-tooltip--bottom" onclick="artifactFullscreen()" data-tooltip="Fullscreen">&#9974;</button>
+        <button class="artifact-action-btn has-tooltip has-tooltip--bottom" onclick="downloadArtifact()" data-tooltip="Download">&#8595;</button>
+        <button class="artifact-action-btn has-tooltip has-tooltip--bottom" onclick="hideArtifactPanel()" data-tooltip="Close panel">&times;</button>
+      </div>
+    </div>
+    <div class="artifact-body view-preview" id="artifactBody">
+      <div class="artifact-code-view" id="artifactCodeView" style="display:none"></div>
+      <div class="artifact-preview-view" id="artifactPreviewView"></div>
+    </div>
+    <div class="artifact-empty" id="artifactEmpty" style="display:flex">
+      <div class="artifact-empty-icon">&#9733;</div>
+      <div class="artifact-empty-text">Artifacts will appear here</div>
+    </div>
+  </aside>
   <button class="workspace-panel-edge-toggle has-tooltip has-tooltip--left" id="btnWorkspacePanelEdgeToggle" type="button" onclick="toggleWorkspacePanel(true)" data-tooltip="Show workspace panel" aria-label="Show workspace panel" aria-expanded="false">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
   </button>
@@ -1649,6 +1673,7 @@
 <script src="static/i18n.js?v=__WEBUI_VERSION__" defer></script>
 <script src="static/icons.js?v=__WEBUI_VERSION__" defer></script>
 <script src="static/assistant_turn_anchors.js?v=__WEBUI_VERSION__" defer></script>
+<script src="static/artifacts.js?v=__WEBUI_VERSION__" defer></script>
 <script src="static/ui.js?v=__WEBUI_VERSION__" defer></script>
 <script src="static/workspace.js?v=__WEBUI_VERSION__" defer></script>
 <script src="static/terminal.js?v=__WEBUI_VERSION__" defer></script>

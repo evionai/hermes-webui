@@ -5136,6 +5136,14 @@ function renderMd(raw){
     flush(lines.length);
     return out.join('\n');
   })(s);
+  // ── ARTIFACT: tag extraction (must run before MEDIA stash) ──────────
+  // Claude-style artifact system: detects ARTIFACT:id|type|title tags
+  // followed by fenced code blocks, extracts them into the artifact panel,
+  // and removes them from the rendered message text.
+  if (typeof extractArtifactsFromText === 'function') {
+    s = extractArtifactsFromText(s);
+  }
+  // ── End ARTIFACT extraction ──────────────────────────────────────────
   // ── MEDIA: token stash (must run first, before any other processing) ───────
   // Detect MEDIA:<path-or-url> tokens emitted by the agent (e.g. screenshots,
   // generated images) and replace them with inline <img> or download links.
