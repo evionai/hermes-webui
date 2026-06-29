@@ -68,7 +68,8 @@
     if (!existing) {
       _artifactOrder.push(id);
       _renderTabs();
-      if (_artifactOrder.length === 1) { showArtifactPanel(); switchArtifactTab(id); }
+      // Don't auto-show — user opens panel manually via star button
+      if (_activeArtifactId) _renderTabs();
     } else if (_activeArtifactId === id) {
       _renderActiveContent();
     }
