@@ -354,6 +354,9 @@
   // ── Init ─────────────────────────────────────────────────────────────────────
   function init() {
     _loadWidth();
+    // Ensure star button is visible from the start
+    var btn = document.getElementById('btnArtifactPanelToggle');
+    if (btn) btn.style.display = '';
     window.createArtifact = createArtifact;
     window.closeArtifact = closeArtifact;
     window.switchArtifactTab = switchArtifactTab;
