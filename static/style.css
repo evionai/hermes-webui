@@ -6922,3 +6922,82 @@ html[data-conversation-outline="enabled"] #outlineToggleBtn:not([hidden]){displa
 /* Settings field highlight (mirrors msg-question-highlight / _highlightQuestionRow pattern) */
 .settings-field-highlight { animation: settings-field-pulse 1.6s ease-out; }
 @keyframes settings-field-pulse { 0% { box-shadow: 0 0 0 0 var(--focus-ring); } 35% { box-shadow: 0 0 0 4px var(--focus-ring); } 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); } }
+
+/* ═══ SKIN: VERCEL — hyper-modern shadcn/Geist aesthetic ═══ */
+/* Geist Sans + Geist Mono fonts. Large radii. Soft shadows.
+   Dark mode is Vercel's signature black. Light mode is clean white.
+   Pick "Vercel" in Appearance → Skin. */
+:root[data-skin="vercel"]{
+  color-scheme:dark;
+  --bg:#0a0a0a;--sidebar:#000000;--surface:#0a0a0a;--surface-subtle:#141414;--surface-subtle-hover:#1a1a1a;
+  --main-bg:#0a0a0a;--topbar-bg:rgba(0,0,0,.8);
+  --border:#1f1f1f;--border2:#2e2e2e;--border-subtle:#1a1a1a;--border-muted:#262626;
+  --text:#fafafa;--strong:#ffffff;--muted:#737373;--em:#d4d4d4;
+  --accent:#ededed;--accent-hover:#ffffff;--accent-bg:rgba(255,255,255,.06);--accent-bg-strong:rgba(255,255,255,.1);--accent-text:#fafafa;
+  --blue:#0070f3;--gold:#f5a524;--focus-ring:rgba(255,255,255,.25);--focus-glow:rgba(255,255,255,.05);
+  --input-bg:#0a0a0a;--hover-bg:#141414;--code-bg:#0a0a0a;--code-inline-bg:#1a1a1a;--code-text:#f5f5f5;--pre-text:#ededed;
+  --error:#ff4444;--success:#00c950;--warning:#f59e0b;--info:#0070f3;
+  --radius-sm:6px;--radius-md:8px;--radius-card:12px;--radius-lg:16px;--radius-xl:20px;
+  --font-ui:"Geist Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-mono:"Geist Mono","JetBrains Mono",ui-monospace,monospace;
+  --user-bubble-bg:#1a1a1a;--user-bubble-border:#2e2e2e;--user-bubble-text:#fafafa;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);--shadow-md:0 4px 12px rgba(0,0,0,.6);--shadow-lg:0 12px 40px rgba(0,0,0,.7);
+}
+:root[data-skin="vercel"]:not(.dark){
+  color-scheme:light;
+  --bg:#ffffff;--sidebar:#fafafa;--surface:#ffffff;
+  --main-bg:#ffffff;--topbar-bg:rgba(255,255,255,.88);
+  --border:#e5e5e5;--border2:#d4d4d4;--border-subtle:#f0f0f0;--border-muted:#e5e5e5;
+  --text:#171717;--strong:#0a0a0a;--muted:#737373;--em:#404040;
+  --accent:#171717;--accent-hover:#0a0a0a;--accent-bg:rgba(0,0,0,.04);--accent-bg-strong:rgba(0,0,0,.08);--accent-text:#171717;
+  --focus-ring:rgba(0,0,0,.15);--input-bg:#ffffff;--hover-bg:#f5f5f5;
+  --code-bg:#fafafa;--code-inline-bg:#f0f0f0;--code-text:#171717;--pre-text:#171717;
+  --error:#dc2626;--success:#059669;--warning:#d97706;--info:#2563eb;
+  --user-bubble-bg:#f5f5f5;--user-bubble-border:#e5e5e5;--user-bubble-text:#171717;
+}
+:root[data-skin="vercel"],
+:root[data-skin="vercel"] body{font-family:var(--font-ui)!important;letter-spacing:-0.011em;background:var(--bg);-webkit-font-smoothing:antialiased;}
+:root[data-skin="vercel"] .app-titlebar,
+:root[data-skin="vercel"] .rail,
+:root[data-skin="vercel"] .sidebar,
+:root[data-skin="vercel"] .rightpanel{background:var(--sidebar)!important;border-color:var(--border)!important;backdrop-filter:saturate(1.8) blur(20px);}
+:root[data-skin="vercel"] .composer-box{
+  background:var(--surface)!important;border:1px solid var(--border)!important;
+  border-radius:16px!important;box-shadow:0 1px 2px rgba(0,0,0,.5)!important;
+  transition:border-color .2s,box-shadow .2s!important;
+}
+:root[data-skin="vercel"] .composer-box:focus-within{
+  border-color:var(--border2)!important;box-shadow:0 0 0 1px var(--border2),0 4px 12px rgba(0,0,0,.6)!important;
+}
+:root[data-skin="vercel"] textarea#msg{font-family:var(--font-ui)!important;font-size:14px;line-height:1.55;}
+:root[data-skin="vercel"] textarea#msg::-webkit-scrollbar{display:none;}
+:root[data-skin="vercel"] .msg-body{font-family:var(--font-ui);font-size:14px;line-height:1.68;letter-spacing:-0.006em;}
+:root[data-skin="vercel"] .msg-body pre,
+:root[data-skin="vercel"] .msg-body code{font-family:var(--font-mono)!important;font-size:12.5px;}
+:root[data-skin="vercel"] .msg-row[data-role="user"] .msg-body{
+  background:var(--user-bubble-bg)!important;border:1px solid var(--user-bubble-border)!important;
+  border-radius:14px!important;color:var(--user-bubble-text)!important;padding:10px 16px!important;
+}
+:root[data-skin="vercel"] button.send-btn{
+  background:var(--text)!important;border:none!important;border-radius:999px!important;
+  width:32px;height:32px;transition:opacity .15s!important;
+}
+:root[data-skin="vercel"] button.send-btn:not(:disabled):hover{opacity:.85!important;}
+:root[data-skin="vercel"] button.send-btn:disabled{background:var(--border2)!important;opacity:.5!important;}
+:root[data-skin="vercel"] button.send-btn svg{color:var(--bg)!important;}
+:root[data-skin="vercel"] .tool-card,
+:root[data-skin="vercel"] .cron-card,
+:root[data-skin="vercel"] .kanban-card{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:12px!important;box-shadow:none!important;}
+:root[data-skin="vercel"] .tool-card:hover{border-color:var(--border2)!important;}
+:root[data-skin="vercel"] .session-item{border-radius:8px!important;margin:1px 4px!important;transition:background .12s!important;}
+:root[data-skin="vercel"] .session-item.active{background:var(--hover-bg)!important;border-left:2px solid var(--text)!important;}
+:root[data-skin="vercel"] .session-item:hover:not(.active){background:var(--surface-subtle)!important;}
+:root[data-skin="vercel"] .app-dialog,
+:root[data-skin="vercel"] .kanban-modal{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:20px!important;box-shadow:0 12px 40px rgba(0,0,0,.7)!important;}
+:root[data-skin="vercel"] .app-dialog-overlay,
+:root[data-skin="vercel"] .kanban-modal-overlay{background:rgba(0,0,0,.6)!important;backdrop-filter:blur(4px);}
+:root[data-skin="vercel"] .msg-body a,
+:root[data-skin="vercel"] .preview-md a{color:var(--text)!important;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--border2);}
+:root[data-skin="vercel"] .msg-body a:hover{text-decoration-color:var(--text);}
+:root[data-skin="vercel"] ::selection{background:var(--accent-bg-strong);color:var(--strong);}
+:root[data-skin="vercel"] ::-webkit-scrollbar-thumb{background:var(--border2)!important;border-radius:4px;}
