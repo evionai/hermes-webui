@@ -1,46 +1,35 @@
 // ── Hermes WebUI Artifact System ───────────────────────────────────────────────
 // Claude-style artifact panel with code/preview toggle, multiple tabs,
-// streaming content updates, and fullscreen support.
+// streaming content updates, file loading, and fullscreen support.
 //
-// Tag format: ARTIFACT:id|type|title
-//   id    — unique artifact id (reusing updates existing)
-//   type  — html, svg, mermaid, markdown, react, code, text
-//   title — display title (shown in tab)
+// Tag formats:
+//   ARTIFACT:id|type|title              — inline content follows in fenced block
+//   ARTIFACT:id|type|title|file:/path   — loads content from local file
+//   ARTIFACT:id|type|title|https://...  — loads content from URL
 //
-// The content follows the ARTIFACT: tag as a fenced code block or until
-// the next tag. Example:
-//
-//   ARTIFACT:my-chart|html|Sales Chart
-//   ```html
-//   <div class="chart">...</div>
-//   ```
+// Supported types: html, react, svg, mermaid, markdown, javascript, code, text
 // ─────────────────────────────────────────────────────────────────────────────────
 
 (function() {
   'use strict';
 
   // ── State ────────────────────────────────────────────────────────────────────
-  const _artifacts = {};       // { id: { type, title, content, codeView, previewView } }
-  const _artifactOrder = [];   // ordered list of artifact ids (for tab order)
+  const _artifacts = {};
+  const _artifactOrder = [];
   let _activeArtifactId = null;
-  let _artifactViewMode = 'preview'; // 'preview' | 'code' | 'split'
+  let _artifactViewMode = 'preview';
   let _panelVisible = false;
-  let _panelWidth = 420;       // px, persisted to localStorage
+  let _panelWidth = 420;
 
-  // ── DOM refs (lazy) ──────────────────────────────────────────────────────────
+  // ── DOM refs ─────────────────────────────────────────────────────────────────
   function _panel() { return document.getElementById('artifactPanel'); }
   function _tabs() { return document.getElementById('artifactTabs'); }
   function _body() { return document.getElementById('artifactBody'); }
   function _codeView() { return document.getElementById('artifactCodeView'); }
   function _previewView() { return document.getElementById('artifactPreviewView'); }
-  function _handle() { return document.getElementById('artifactResize'); }
 
-  // ── Persistence ──────────────────────────────────────────────────────────────
   function _loadWidth() {
-    try {
-      const v = localStorage.getItem('hermes-artifact-panel-width');
-      if (v && !isNaN(v)) _panelWidth = Math.max(280, Math.min(900, parseInt(v)));
-    } catch (_) {}
+    try { var v = localStorage.getItem('hermes-artifact-panel-width'); if (v && !isNaN(v)) _panelWidth = Math.max(280, Math.min(900, parseInt(v))); } catch (_) {}
   }
   function _saveWidth() {
     try { localStorage.setItem('hermes-artifact-panel-width', String(_panelWidth)); } catch (_) {}
@@ -50,144 +39,102 @@
   function showArtifactPanel() {
     if (_panelVisible) return;
     _panelVisible = true;
-    const p = _panel();
-    if (!p) return;
-    p.style.display = 'flex';
-    p.style.width = _panelWidth + 'px';
-    // Trigger reflow for transition
-    p.offsetHeight;
-    // Update toggle button state
+    var p = _panel(); if (!p) return;
+    p.style.display = 'flex'; p.style.width = _panelWidth + 'px';
     _updateToggleBtn();
   }
-
   function hideArtifactPanel() {
     if (!_panelVisible) return;
     _panelVisible = false;
-    const p = _panel();
-    if (!p) return;
+    var p = _panel(); if (!p) return;
     p.style.display = 'none';
     _updateToggleBtn();
   }
-
   function toggleArtifactPanel() {
-    if (_panelVisible) hideArtifactPanel();
-    else showArtifactPanel();
+    if (_panelVisible) hideArtifactPanel(); else showArtifactPanel();
   }
-
   function _updateToggleBtn() {
-    const btn = document.getElementById('btnArtifactPanelToggle');
-    if (!btn) return;
-    if (_panelVisible && _activeArtifactId) {
-      btn.style.display = '';
-      btn.setAttribute('aria-pressed', 'true');
-      btn.classList.add('active');
-    } else if (_panelVisible) {
-      btn.style.display = '';
-      btn.setAttribute('aria-pressed', 'true');
-      btn.classList.add('active');
-    } else {
-      btn.setAttribute('aria-pressed', 'false');
-      btn.classList.remove('active');
-      // Keep visible but dim if there are artifacts
-      if (Object.keys(_artifacts).length === 0) {
-        btn.style.display = 'none';
-      }
-    }
+    var btn = document.getElementById('btnArtifactPanelToggle'); if (!btn) return;
+    if (Object.keys(_artifacts).length === 0) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    btn.setAttribute('aria-pressed', _panelVisible ? 'true' : 'false');
+    if (_panelVisible) btn.classList.add('active'); else btn.classList.remove('active');
   }
 
   // ── Artifact CRUD ────────────────────────────────────────────────────────────
-  function createArtifact(id, type, title, content) {
-    // Create or update
-    const existing = _artifacts[id];
-    _artifacts[id] = { type: type || 'code', title: title || id, content: content || '' };
-
+  function createArtifact(id, type, title, content, src) {
+    var existing = _artifacts[id];
+    _artifacts[id] = { type: type || 'code', title: title || id, content: content || '', src: src || null };
     if (!existing) {
       _artifactOrder.push(id);
       _renderTabs();
-      // Auto-show panel on first artifact
-      if (_artifactOrder.length === 1) {
-        showArtifactPanel();
-        switchArtifactTab(id);
-      }
+      if (_artifactOrder.length === 1) { showArtifactPanel(); switchArtifactTab(id); }
     } else if (_activeArtifactId === id) {
       _renderActiveContent();
     }
-
-    // Update tab title if content streamed
-    if (existing && _activeArtifactId === id) {
-      _renderTabs();
-    }
+    if (existing && _activeArtifactId === id) { _renderTabs(); }
     _updateToggleBtn();
+
+    // If src is set, load content asynchronously
+    if (src) _loadArtifactSrc(id, src);
+  }
+
+  function _loadArtifactSrc(id, src) {
+    // Convert local file path to api/media endpoint
+    var url = src;
+    if (src.indexOf('://') === -1 && src.indexOf('/') === 0) {
+      url = 'api/media?path=' + encodeURIComponent(src) + '&inline=1';
+    }
+    fetch(url).then(function(r) {
+      if (!r.ok) throw new Error('Failed to load');
+      return r.text();
+    }).then(function(text) {
+      _artifacts[id].content = text;
+      if (_activeArtifactId === id) _renderActiveContent();
+    }).catch(function(err) {
+      _artifacts[id].content = '/* Failed to load: ' + src + ' — ' + err.message + ' */';
+      if (_activeArtifactId === id) _renderActiveContent();
+    });
   }
 
   function updateArtifactContent(id, content, append) {
-    const a = _artifacts[id];
-    if (!a) return;
-    if (append) {
-      a.content += content;
-    } else {
-      a.content = content;
-    }
-    if (_activeArtifactId === id) {
-      _renderActiveContent();
-    }
+    var a = _artifacts[id]; if (!a) return;
+    a.content = append ? (a.content + content) : content;
+    if (_activeArtifactId === id) _renderActiveContent();
   }
 
   function closeArtifact(id) {
     delete _artifacts[id];
-    const idx = _artifactOrder.indexOf(id);
-    if (idx >= 0) _artifactOrder.splice(idx, 1);
-
+    var idx = _artifactOrder.indexOf(id); if (idx >= 0) _artifactOrder.splice(idx, 1);
     if (_activeArtifactId === id) {
-      // Switch to next available tab
-      const nextId = _artifactOrder[Math.min(idx, _artifactOrder.length - 1)];
-      if (nextId) {
-        switchArtifactTab(nextId);
-      } else {
-        _activeArtifactId = null;
-        _renderEmpty();
-        hideArtifactPanel();
-      }
+      var nextId = _artifactOrder[Math.min(idx, _artifactOrder.length - 1)];
+      if (nextId) switchArtifactTab(nextId);
+      else { _activeArtifactId = null; _renderEmpty(); hideArtifactPanel(); }
     }
-    _renderTabs();
-    _updateToggleBtn();
+    _renderTabs(); _updateToggleBtn();
   }
 
   function switchArtifactTab(id) {
-    _activeArtifactId = id;
-    _renderTabs();
-    _renderActiveContent();
+    _activeArtifactId = id; _renderTabs(); _renderActiveContent();
     if (!_panelVisible) showArtifactPanel();
   }
 
   function switchArtifactView(mode) {
-    if (mode) {
-      _artifactViewMode = mode;
-    } else {
-      // Cycle: preview → code → split → preview
-      if (_artifactViewMode === 'preview') _artifactViewMode = 'code';
-      else if (_artifactViewMode === 'code') _artifactViewMode = 'split';
-      else _artifactViewMode = 'preview';
-    }
+    if (mode) { _artifactViewMode = mode; }
+    else { _artifactViewMode = _artifactViewMode === 'preview' ? 'code' : _artifactViewMode === 'code' ? 'split' : 'preview'; }
     _renderActiveContent();
   }
 
   // ── Rendering ────────────────────────────────────────────────────────────────
-  function esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   function _renderTabs() {
-    const t = _tabs();
-    if (!t) return;
-    let html = '';
-    for (const id of _artifactOrder) {
-      const a = _artifacts[id];
-      if (!a) continue;
-      const active = id === _activeArtifactId ? ' active' : '';
-      const typeIcon = _typeIcon(a.type);
+    var t = _tabs(); if (!t) return;
+    var html = '';
+    for (var i = 0; i < _artifactOrder.length; i++) {
+      var id = _artifactOrder[i], a = _artifacts[id]; if (!a) continue;
+      var active = id === _activeArtifactId ? ' active' : '';
       html += '<button class="artifact-tab' + active + '" onclick="switchArtifactTab(\'' + esc(id) + '\')" title="' + esc(a.title) + '">';
-      html += '<span class="artifact-tab-icon">' + typeIcon + '</span>';
       html += '<span class="artifact-tab-title">' + esc(a.title) + '</span>';
       html += '<span class="artifact-tab-close" onclick="event.stopPropagation();closeArtifact(\'' + esc(id) + '\')" title="Close">&times;</span>';
       html += '</button>';
@@ -195,176 +142,95 @@
     t.innerHTML = html;
   }
 
-  function _typeIcon(type) {
-    const icons = {
-      html: '&#60;&#62;',
-      react: '&#9883;',
-      svg: '&#9638;',
-      mermaid: '&#9671;',
-      markdown: '&#9998;',
-      code: '{}',
-      text: '&#182;',
-    };
-    return icons[type] || icons.code;
-  }
-
   function _renderEmpty() {
-    const b = _body();
-    const cv = _codeView();
-    const pv = _previewView();
-    const emp = document.getElementById('artifactEmpty');
+    var b = _body(), cv = _codeView(), pv = _previewView(), emp = document.getElementById('artifactEmpty');
     if (emp) emp.style.display = 'flex';
     if (b) b.style.display = 'none';
-    if (cv) cv.innerHTML = '';
-    if (pv) pv.innerHTML = '';
+    if (cv) cv.innerHTML = ''; if (pv) pv.innerHTML = '';
   }
 
   function _renderActiveContent() {
-    const id = _activeArtifactId;
-    const a = id ? _artifacts[id] : null;
-    const b = _body();
-    const cv = _codeView();
-    const pv = _previewView();
-    const emp = document.getElementById('artifactEmpty');
-
-    if (!a) {
-      _renderEmpty();
-      return;
-    }
-
-    // Hide empty state, show body
+    var id = _activeArtifactId, a = id ? _artifacts[id] : null;
+    var b = _body(), cv = _codeView(), pv = _previewView(), emp = document.getElementById('artifactEmpty');
+    if (!a) { _renderEmpty(); return; }
     if (emp) emp.style.display = 'none';
-    if (b) b.style.display = '';
+    if (b) { b.style.display = ''; b.className = 'artifact-body view-' + _artifactViewMode; }
 
-    const content = a.content || '';
-    const type = a.type || 'code';
+    var content = a.content || '', type = a.type || 'code';
+    var loading = a.src && !content;
 
-    // Update body display based on view mode
-    if (b) {
-      b.className = 'artifact-body view-' + _artifactViewMode;
-    }
+    var viewBtn = document.getElementById('btnArtifactViewToggle');
+    if (viewBtn) viewBtn.textContent = _artifactViewMode === 'preview' ? 'Code' : _artifactViewMode === 'code' ? 'Preview' : 'Code';
 
-    // Update view toggle button
-    const viewBtn = document.getElementById('btnArtifactViewToggle');
-    if (viewBtn) {
-      viewBtn.textContent = _artifactViewMode === 'preview' ? 'Code' :
-                            _artifactViewMode === 'code' ? 'Preview' :
-                            _artifactViewMode === 'split' ? 'Code' : 'Preview';
-    }
-
-    // Show/hide views
     if (_artifactViewMode === 'code') {
-      if (cv) { cv.style.display = ''; _setCodeContent(cv, content, type); }
+      if (cv) { cv.style.display = ''; _setCodeContent(cv, loading ? 'Loading...' : content, type); }
       if (pv) { pv.style.display = 'none'; _setPreviewContent(pv, '', type); }
     } else if (_artifactViewMode === 'preview') {
       if (cv) { cv.style.display = 'none'; _setCodeContent(cv, '', type); }
-      if (pv) { pv.style.display = ''; _setPreviewContent(pv, content, type); }
-    } else { // split
-      if (cv) { cv.style.display = ''; _setCodeContent(cv, content, type); }
-      if (pv) { pv.style.display = ''; _setPreviewContent(pv, content, type); }
+      if (pv) { pv.style.display = ''; _setPreviewContent(pv, loading ? 'Loading...' : content, type); }
+    } else {
+      if (cv) { cv.style.display = ''; _setCodeContent(cv, loading ? 'Loading...' : content, type); }
+      if (pv) { pv.style.display = ''; _setPreviewContent(pv, loading ? 'Loading...' : content, type); }
     }
   }
 
   function _setCodeContent(el, content, type) {
-    const langMap = { html: 'html', react: 'jsx', svg: 'xml', mermaid: 'mermaid', markdown: 'md', javascript: 'js', code: '', text: '' };
-    const lang = langMap[type] || '';
+    var langMap = { html: 'html', react: 'jsx', svg: 'xml', mermaid: 'mermaid', markdown: 'md', javascript: 'js', code: '', text: '' };
+    var lang = langMap[type] || '';
     el.innerHTML = '<pre class="artifact-code-pre"><code class="' + (lang ? 'language-' + lang : '') + '">' + esc(content) + '</code></pre>';
-    // Trigger syntax highlighting if Prism is available
     if (typeof Prism !== 'undefined' && Prism.highlightElement) {
-      const codeEl = el.querySelector('code');
-      if (codeEl) {
-        try { Prism.highlightElement(codeEl); } catch (_) {}
-      }
+      var codeEl = el.querySelector('code'); if (codeEl) try { Prism.highlightElement(codeEl); } catch (_) {}
     }
   }
 
   function _setPreviewContent(el, content, type) {
-    if (!content) {
-      el.innerHTML = '<div class="artifact-preview-placeholder">No content to preview</div>';
-      return;
-    }
+    if (!content) { el.innerHTML = '<div class="artifact-preview-placeholder">Loading...</div>'; return; }
     switch (type) {
-      case 'html':
-      case 'react':
-        _renderHtmlPreview(el, content);
-        break;
-      case 'svg':
-        _renderSvgPreview(el, content);
-        break;
-      case 'mermaid':
-        _renderMermaidPreview(el, content);
-        break;
-      case 'markdown':
-        _renderMarkdownPreview(el, content);
-        break;
-      case 'code':
-      case 'text':
-      default:
-        _renderTextPreview(el, content, type);
-        break;
+      case 'html': case 'react': _renderHtmlPreview(el, content); break;
+      case 'svg': _renderSvgPreview(el, content); break;
+      case 'mermaid': _renderMermaidPreview(el, content); break;
+      case 'markdown': _renderMarkdownPreview(el, content); break;
+      default: _renderTextPreview(el, content, type); break;
     }
   }
 
   function _renderHtmlPreview(el, content) {
-    // Sandboxed iframe with srcdoc
-    const iframe = document.createElement('iframe');
+    var iframe = document.createElement('iframe');
     iframe.className = 'artifact-preview-iframe';
     iframe.sandbox = 'allow-scripts allow-same-origin';
     iframe.srcdoc = content;
     iframe.title = 'Artifact preview';
-    el.innerHTML = '';
-    el.appendChild(iframe);
+    el.innerHTML = ''; el.appendChild(iframe);
   }
 
   function _renderSvgPreview(el, content) {
-    // Extract SVG from markdown code block if needed
-    let svg = content;
-    if (svg.startsWith('```')) {
-      svg = svg.replace(/^```.*?\n/, '').replace(/\n```$/, '');
-    }
+    var svg = content;
+    if (svg.indexOf('```') === 0) svg = svg.replace(/^```.*?\n/, '').replace(/\n```$/, '');
     el.innerHTML = '<div class="artifact-preview-svg">' + svg + '</div>';
   }
 
   function _renderMermaidPreview(el, content) {
-    const id = 'mermaid-' + Math.random().toString(36).slice(2, 10);
+    var id = 'mermaid-' + Math.random().toString(36).slice(2, 10);
     el.innerHTML = '<div class="mermaid-block" data-mermaid-id="' + id + '">' + esc(content) + '</div>';
-    // Render mermaid if available
-    if (typeof mermaid !== 'undefined') {
-      try {
-        mermaid.run({ nodes: [el.querySelector('.mermaid-block')] });
-      } catch (_) {}
-    }
+    if (typeof mermaid !== 'undefined') try { mermaid.run({ nodes: [el.querySelector('.mermaid-block')] }); } catch (_) {}
   }
 
   function _renderMarkdownPreview(el, content) {
-    // Use the existing renderMd if available
-    if (typeof renderMd === 'function') {
-      el.innerHTML = renderMd(content);
-    } else {
-      el.innerHTML = '<pre class="artifact-preview-text">' + esc(content) + '</pre>';
-    }
+    el.innerHTML = typeof renderMd === 'function' ? renderMd(content) : '<pre class="artifact-preview-text">' + esc(content) + '</pre>';
   }
 
   function _renderTextPreview(el, content, type) {
-    const langMap = { javascript: 'js', code: '' };
-    const lang = langMap[type] || '';
+    var langMap = { javascript: 'js', code: '' }, lang = langMap[type] || '';
     el.innerHTML = '<pre class="artifact-code-pre"><code class="' + (lang ? 'language-' + lang : '') + '">' + esc(content) + '</code></pre>';
     if (typeof Prism !== 'undefined' && Prism.highlightElement) {
-      const codeEl = el.querySelector('code');
-      if (codeEl) {
-        try { Prism.highlightElement(codeEl); } catch (_) {}
-      }
+      var codeEl = el.querySelector('code'); if (codeEl) try { Prism.highlightElement(codeEl); } catch (_) {}
     }
   }
 
-  // ── Fullscreen ───────────────────────────────────────────────────────────────
+  // ── Fullscreen / Download ────────────────────────────────────────────────────
   function artifactFullscreen() {
-    const id = _activeArtifactId;
-    if (!id) return;
-    const a = _artifacts[id];
-    if (!a) return;
-
-    const overlay = document.createElement('div');
+    var id = _activeArtifactId, a = id ? _artifacts[id] : null; if (!a) return;
+    var overlay = document.createElement('div');
     overlay.className = 'artifact-fullscreen-overlay';
     overlay.id = 'artifactFullscreenOverlay';
     overlay.innerHTML = '<div class="artifact-fullscreen-header">' +
@@ -378,142 +244,78 @@
         '<button onclick="closeArtifactFullscreen()" class="artifact-fullscreen-btn artifact-fullscreen-close">&times;</button>' +
       '</div></div>' +
       '<div class="artifact-fullscreen-body view-preview" id="artifactFullscreenBody"></div>';
-
     document.body.appendChild(overlay);
     document.body.style.overflow = 'hidden';
-
-    // Render content in fullscreen
-    const fsBody = document.getElementById('artifactFullscreenBody');
-    if (fsBody) {
-      _setPreviewContent(fsBody, a.content, a.type);
-    }
-
-    // Escape key to close
-    function onKey(e) {
-      if (e.key === 'Escape') {
-        closeArtifactFullscreen();
-        document.removeEventListener('keydown', onKey);
-      }
-    }
-    document.addEventListener('keydown', onKey);
+    var fsBody = document.getElementById('artifactFullscreenBody');
+    if (fsBody) _setPreviewContent(fsBody, a.content, a.type);
+    document.addEventListener('keydown', function onKey(e) { if (e.key === 'Escape') { closeArtifactFullscreen(); document.removeEventListener('keydown', onKey); } });
   }
-
   function closeArtifactFullscreen() {
-    const overlay = document.getElementById('artifactFullscreenOverlay');
-    if (overlay) overlay.remove();
-    document.body.style.overflow = '';
-    _renderActiveContent(); // Refresh the panel view
+    var overlay = document.getElementById('artifactFullscreenOverlay'); if (overlay) overlay.remove();
+    document.body.style.overflow = ''; _renderActiveContent();
   }
-
-  // ── Download ─────────────────────────────────────────────────────────────────
   function downloadArtifact() {
-    const id = _activeArtifactId;
-    if (!id) return;
-    const a = _artifacts[id];
-    if (!a) return;
-
-    const extMap = { html: '.html', react: '.jsx', svg: '.svg', mermaid: '.mmd', markdown: '.md', javascript: '.js', code: '.txt', text: '.txt' };
-    const ext = extMap[a.type] || '.txt';
-    const filename = (a.title || id).replace(/[^a-zA-Z0-9_-]/g, '_') + ext;
-
-    const blob = new Blob([a.content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.click();
+    var id = _activeArtifactId, a = id ? _artifacts[id] : null; if (!a) return;
+    var extMap = { html: '.html', react: '.jsx', svg: '.svg', mermaid: '.mmd', markdown: '.md', javascript: '.js', code: '.txt', text: '.txt' };
+    var filename = (a.title || id).replace(/[^a-zA-Z0-9_-]/g, '_') + (extMap[a.type] || '.txt');
+    var blob = new Blob([a.content], { type: 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a'); link.href = url; link.download = filename; link.click();
     URL.revokeObjectURL(url);
   }
 
   // ── ARTIFACT: Tag Parser ─────────────────────────────────────────────────────
-  // Called during message rendering to extract artifact tags.
-  // Returns the text with artifact tags removed, and populates _artifacts.
-
-  const _ARTIFACT_TAG_RE = /ARTIFACT:([a-zA-Z0-9_-]+)\|([a-zA-Z0-9_-]+)\|([^\n]+)/;
+  var _ARTIFACT_BLOCK_RE = /ARTIFACT:([a-zA-Z0-9_-]+)\|([a-zA-Z0-9_-]+)\|([^\n|]+)(?:\|(file:\/[^\n]+|https?:\/\/[^\n]+))?\n*```(\w*)\n([\s\S]*?)```/g;
+  var _ARTIFACT_INLINE_RE = /ARTIFACT:([a-zA-Z0-9_-]+)\|([a-zA-Z0-9_-]+)\|([^\n|]+)(?:\|(file:\/[^\n]+|https?:\/\/[^\n]+))?\n([\s\S]*?)(?=\nARTIFACT:|$)/g;
 
   function extractArtifactsFromText(text) {
-    // Find ARTIFACT:id|type|title followed by a fenced code block
-    let modified = text;
-    const seen = new Set();
-
-    // Match ARTIFACT: tag + optional content in next fenced block
-    const blockRe = /ARTIFACT:([a-zA-Z0-9_-]+)\|([a-zA-Z0-9_-]+)\|([^\n]+)\n*```(\w*)\n([\s\S]*?)```/g;
-    modified = modified.replace(blockRe, function(match, id, type, title, lang, content) {
-      createArtifact(id, type || lang || 'code', title, content.trim());
-      seen.add(id);
-      return ''; // Remove from rendered text
+    var seen = {};
+    // Block format: ARTIFACT: tag + fenced block
+    text = text.replace(_ARTIFACT_BLOCK_RE, function(m, id, type, title, srcRaw, lang, content) {
+      var src = srcRaw ? srcRaw.replace(/^file:/, '') : null;
+      createArtifact(id, type || lang || 'code', title, content.trim(), src);
+      seen[id] = true;
+      return '';
     });
-
-    // Also handle ARTIFACT: tags without a code block (just take the rest)
-    // ARTIFACT:id|type|title on its own line, content is everything after until next tag
-    const inlineRe = /ARTIFACT:([a-zA-Z0-9_-]+)\|([a-zA-Z0-9_-]+)\|([^\n]+)\n([\s\S]*?)(?=\nARTIFACT:|$)/g;
-    modified = modified.replace(inlineRe, function(match, id, type, title, content) {
-      if (!seen.has(id)) {
-        createArtifact(id, type, title, content.trim());
-        seen.add(id);
-      }
-      return ''; // Remove from rendered text
+    // Inline format: ARTIFACT: tag without fenced block
+    text = text.replace(_ARTIFACT_INLINE_RE, function(m, id, type, title, srcRaw, content) {
+      if (seen[id]) return '';
+      var src = srcRaw ? srcRaw.replace(/^file:/, '') : null;
+      createArtifact(id, type, title, (content || '').trim(), src);
+      seen[id] = true;
+      return '';
     });
-
-    return modified;
+    return text;
   }
 
-  // ── Streaming support ────────────────────────────────────────────────────────
-  // Called during SSE streaming to incrementally build artifact content
-  function streamArtifactChunk(id, chunk) {
-    updateArtifactContent(id, chunk, true);
-  }
-
-  function finalizeArtifact(id) {
-    // Called when streaming is complete
-    // Future: could trigger syntax highlighting or re-render
-    if (_activeArtifactId === id) {
-      _renderActiveContent();
-    }
-  }
+  // ── Streaming ────────────────────────────────────────────────────────────────
+  function streamArtifactChunk(id, chunk) { updateArtifactContent(id, chunk, true); }
+  function finalizeArtifact(id) { if (_activeArtifactId === id) _renderActiveContent(); }
 
   // ── Panel resize ─────────────────────────────────────────────────────────────
-  let _resizing = false;
-  let _resizeStartX = 0;
-  let _resizeStartWidth = 0;
-
+  var _resizing = false, _resizeStartX = 0, _resizeStartWidth = 0;
   function _initResize() {
-    const h = _handle();
-    if (!h) return;
-
+    var h = document.getElementById('artifactResize'); if (!h) return;
     h.addEventListener('mousedown', function(e) {
-      _resizing = true;
-      _resizeStartX = e.clientX;
-      _resizeStartWidth = _panelWidth;
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-      e.preventDefault();
+      _resizing = true; _resizeStartX = e.clientX; _resizeStartWidth = _panelWidth;
+      document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; e.preventDefault();
     });
-
     document.addEventListener('mousemove', function(e) {
       if (!_resizing) return;
-      const delta = _resizeStartX - e.clientX;
-      _panelWidth = Math.max(280, Math.min(900, _resizeStartWidth + delta));
-      const p = _panel();
-      if (p) p.style.width = _panelWidth + 'px';
+      _panelWidth = Math.max(280, Math.min(900, _resizeStartWidth + (_resizeStartX - e.clientX)));
+      var p = _panel(); if (p) p.style.width = _panelWidth + 'px';
     });
-
     document.addEventListener('mouseup', function() {
-      if (!_resizing) return;
-      _resizing = false;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      _saveWidth();
+      if (!_resizing) return; _resizing = false;
+      document.body.style.cursor = ''; document.body.style.userSelect = ''; _saveWidth();
     });
   }
 
   // ── Init ─────────────────────────────────────────────────────────────────────
   function initArtifactPanel() {
-    _loadWidth();
-    _initResize();
-    // Export global functions
-    window.openArtifact = createArtifact;
+    _loadWidth(); _initResize();
     window.createArtifact = createArtifact;
+    window.openArtifact = createArtifact;
     window.closeArtifact = closeArtifact;
     window.switchArtifactTab = switchArtifactTab;
     window.switchArtifactView = switchArtifactView;
@@ -529,11 +331,9 @@
     window.updateArtifactContent = updateArtifactContent;
   }
 
-  // Auto-init when DOM is ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initArtifactPanel);
   } else {
     initArtifactPanel();
   }
-
 })();
